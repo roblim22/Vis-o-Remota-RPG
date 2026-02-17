@@ -1,0 +1,2433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#9d4edd">
+    <meta name="description" content="Jogo de RPG com mecânicas autênticas de Visão Remota">
+    <title>Visão Remota RPG - Aventura Psíquica</title>
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- PWA Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('Service Worker registered!'))
+                    .catch(err => console.log('Service Worker registration failed:', err));
+            });
+        }
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .game-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a2e;
+        }
+
+        /* Top HUD */
+        .hud {
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            border-bottom: 4px solid #e94560;
+            padding: 15px 20px;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .hud-left {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .hud-center {
+            text-align: center;
+        }
+
+        .hud-right {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
+        .player-name {
+            font-size: 0.8em;
+            color: #00d9ff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+            font-weight: 700;
+        }
+
+        .stat {
+            font-size: 0.7em;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+            font-weight: 700;
+        }
+
+        .hp-bar-container {
+            width: 150px;
+            height: 20px;
+            background: #000;
+            border: 2px solid #e94560;
+            position: relative;
+        }
+
+        .hp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b9d);
+            transition: width 0.3s;
+        }
+
+        .hp-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.5em;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 
+                1px 1px 2px #000,
+                -1px -1px 2px #000,
+                1px -1px 2px #000,
+                -1px 1px 2px #000,
+                0 0 4px #000;
+        }
+
+        /* Main Game Area */
+        .game-main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        /* Map Area */
+        .map-container {
+            position: relative;
+            background: #0a0a0a;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            display: block;
+            margin: 0 auto;
+            background: #2d4a3e;
+            border: 4px solid #16213e;
+            touch-action: none;
+            -webkit-user-drag: none;
+        }
+
+        /* Right Sidebar */
+        .sidebar {
+            background: #16213e;
+            border-left: 4px solid #e94560;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            padding: 15px;
+            border-bottom: 2px solid #0f3460;
+        }
+
+        .sidebar-title {
+            font-size: 0.6em;
+            color: #00d9ff;
+            margin-bottom: 10px;
+            text-align: center;
+            border-bottom: 1px solid #00d9ff;
+            padding-bottom: 5px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+            font-weight: 700;
+        }
+
+        .mini-canvas {
+            width: 100%;
+            height: 200px;
+            background: #fff;
+            border: 3px solid #e94560;
+            cursor: crosshair;
+            margin-bottom: 10px;
+        }
+
+        .canvas-tools {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .tool-btn {
+            background: #e94560;
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 8px;
+            font-size: 0.5em;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tool-btn:hover {
+            background: #ff6b9d;
+            transform: scale(1.05);
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .color-box {
+            width: 100%;
+            height: 30px;
+            border: 2px solid #000;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .color-box:hover {
+            transform: scale(1.1);
+        }
+
+        .color-box.active {
+            border-color: #ffd700;
+            box-shadow: 0 0 10px #ffd700;
+        }
+
+        .target-display {
+            background: rgba(0, 217, 255, 0.1);
+            border: 2px solid #00d9ff;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .target-number {
+            font-size: 0.8em;
+            color: #ffd700;
+            letter-spacing: 2px;
+        }
+
+        .mission-info {
+            font-size: 0.5em;
+            line-height: 1.5;
+            color: #ccc;
+        }
+
+        .controls-hint {
+            font-size: 0.45em;
+            line-height: 1.4;
+            color: #888;
+        }
+
+        /* Dialogue Box */
+        .dialogue-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 700px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 4px solid #00d9ff;
+            padding: 20px;
+            display: none;
+            z-index: 100;
+        }
+
+        .dialogue-box.active {
+            display: block;
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        .dialogue-speaker {
+            font-size: 0.7em;
+            color: #ffd700;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+        }
+
+        .dialogue-text {
+            font-size: 0.6em;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .dialogue-choices {
+            display: grid;
+            gap: 10px;
+        }
+
+        .choice-option {
+            background: rgba(233, 69, 96, 0.3);
+            border: 2px solid #e94560;
+            color: #fff;
+            padding: 10px;
+            font-size: 0.5em;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .choice-option:hover {
+            background: rgba(233, 69, 96, 0.6);
+            transform: translateX(5px);
+        }
+
+        .dialogue-continue {
+            text-align: center;
+            font-size: 0.5em;
+            color: #00d9ff;
+            animation: pulse-continue 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse-continue {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.98); }
+        }
+
+        /* Mission Complete Popup */
+        .popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #16213e, #0f3460);
+            border: 4px solid #ffd700;
+            padding: 30px;
+            text-align: center;
+            display: none;
+            z-index: 200;
+            min-width: 400px;
+        }
+
+        .popup.active {
+            display: block;
+            animation: popIn 0.3s;
+        }
+
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        .popup-title {
+            font-size: 1em;
+            color: #ffd700;
+            margin-bottom: 20px;
+            text-shadow: 
+                2px 2px 4px rgba(0, 0, 0, 0.9),
+                0 0 10px rgba(0, 0, 0, 0.8);
+        }
+
+        .popup-message {
+            font-size: 0.6em;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #ccc;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        .popup-btn {
+            background: linear-gradient(135deg, #e94560, #ff6b9d);
+            border: 3px solid #ffd700;
+            color: #fff;
+            padding: 15px 30px;
+            font-size: 0.7em;
+            cursor: pointer;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        .popup-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Menu Overlay */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            z-index: 300;
+            padding: 40px;
+            overflow-y: auto;
+        }
+
+        .menu-overlay.active {
+            display: block;
+        }
+
+        .menu-content {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #16213e;
+            border: 4px solid #00d9ff;
+            padding: 30px;
+        }
+
+        .menu-title {
+            font-size: 1.2em;
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .menu-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .menu-tab {
+            flex: 1;
+            background: #0f3460;
+            border: 2px solid #00d9ff;
+            color: #fff;
+            padding: 15px;
+            font-size: 0.6em;
+            cursor: pointer;
+        }
+
+        .menu-tab.active {
+            background: #e94560;
+            border-color: #ffd700;
+        }
+
+        .tab-content {
+            display: none;
+            font-size: 0.6em;
+            line-height: 1.8;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .mission-card {
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid #e94560;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .mission-status {
+            display: inline-block;
+            padding: 5px 10px;
+            font-size: 0.5em;
+            margin-bottom: 10px;
+        }
+
+        .status-pending {
+            background: #ffd700;
+            color: #000;
+        }
+
+        .status-complete {
+            background: #00ff88;
+            color: #000;
+        }
+
+        @media (max-width: 1024px) {
+            .game-main {
+                grid-template-columns: 1fr;
+            }
+            .sidebar {
+                display: none;
+            }
+        }
+
+        /* Mobile Virtual Controls */
+        .mobile-controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 200px;
+            display: block; /* Always visible for testing */
+            z-index: 500; /* Higher z-index */
+            pointer-events: none;
+        }
+
+        .dpad-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 150px;
+            height: 150px;
+            pointer-events: all;
+        }
+
+        .dpad-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 3px solid #00d9ff;
+            border-radius: 50%;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, rgba(157, 78, 221, 0.95), rgba(255, 0, 110, 0.95));
+            border: 4px solid #00d9ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.7);
+            font-weight: 900;
+            transition: all 0.1s ease;
+            text-shadow: 
+                2px 2px 4px rgba(0, 0, 0, 0.9),
+                0 0 10px rgba(0, 0, 0, 0.8),
+                0 0 5px rgba(255, 255, 255, 0.3);
+        }
+
+        .dpad-btn:hover {
+            background: linear-gradient(135deg, rgba(157, 78, 221, 1), rgba(255, 0, 110, 1));
+            border-color: #ffd700;
+        }
+
+        .dpad-btn:active {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 1), rgba(233, 69, 96, 1));
+            transform: scale(0.9);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .dpad-up {
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .dpad-down {
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .dpad-left {
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .dpad-right {
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .action-buttons {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 15px;
+            pointer-events: all;
+        }
+
+        .action-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.95), rgba(139, 92, 246, 0.95));
+            border: 5px solid #ffd700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            font-size: 1.1em;
+            color: #fff;
+            font-weight: 900;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.7);
+            user-select: none;
+            touch-action: none;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            text-shadow: 
+                2px 2px 4px rgba(0, 0, 0, 0.9),
+                0 0 10px rgba(0, 0, 0, 0.8),
+                0 0 5px rgba(255, 255, 255, 0.3);
+            line-height: 1.2;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 1), rgba(139, 92, 246, 1));
+            border-color: #00d9ff;
+        }
+
+        .action-btn:active {
+            transform: scale(0.85);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Mobile Optimizations */
+        /* Mobile Canvas Panel */
+        .mobile-canvas-toggle {
+            position: fixed;
+            top: 120px;
+            right: 10px;
+            background: linear-gradient(135deg, var(--pixel-purple), var(--pixel-pink));
+            border: 4px solid var(--pixel-gold);
+            color: white;
+            padding: 15px 12px;
+            font-size: 0.6em;
+            font-weight: 900;
+            cursor: pointer;
+            z-index: 160;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.7);
+            text-shadow: 
+                2px 2px 4px rgba(0, 0, 0, 0.9),
+                0 0 8px rgba(0, 0, 0, 0.8);
+            letter-spacing: 1px;
+        }
+
+        .mobile-canvas-toggle:hover {
+            transform: scale(1.05);
+            border-color: #00d9ff;
+        }
+
+        .mobile-canvas-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .mobile-canvas-panel {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 90%;
+            max-width: 350px;
+            height: 100%;
+            background: var(--panel-bg);
+            border-left: 4px solid var(--pixel-cyan);
+            z-index: 250;
+            overflow-y: auto;
+            transition: right 0.3s ease;
+            padding: 20px;
+        }
+
+        .mobile-canvas-panel.active {
+            right: 0;
+        }
+
+        .close-canvas-btn {
+            background: var(--pixel-pink);
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 0.6em;
+            cursor: pointer;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-canvas-toggle {
+                display: block;
+            }
+        }
+            .hud {
+                padding: 10px;
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .hud-left, .hud-center, .hud-right {
+                justify-content: center;
+            }
+
+            .player-name {
+                font-size: 0.6em;
+            }
+
+            .stat {
+                font-size: 0.6em;
+            }
+
+            .hp-bar-container {
+                width: 120px;
+                height: 18px;
+            }
+
+            .dialogue-box {
+                width: 95%;
+                padding: 15px;
+                bottom: 210px;
+            }
+
+            .dialogue-speaker {
+                font-size: 0.6em;
+            }
+
+            .dialogue-text {
+                font-size: 0.5em;
+            }
+
+            .choice-option {
+                font-size: 0.45em;
+                padding: 12px;
+            }
+
+            .popup {
+                width: 90%;
+                min-width: 0;
+                padding: 20px;
+            }
+
+            .popup-title {
+                font-size: 0.8em;
+            }
+
+            .popup-message {
+                font-size: 0.5em;
+            }
+
+            .popup-btn {
+                font-size: 0.6em;
+                padding: 12px 25px;
+            }
+
+            .menu-content {
+                padding: 15px;
+            }
+
+            .menu-title {
+                font-size: 0.9em;
+            }
+
+            .menu-tab {
+                font-size: 0.5em;
+                padding: 10px;
+            }
+
+            .tab-content {
+                font-size: 0.5em;
+            }
+
+            .tool-btn {
+                font-size: 0.5em;
+                padding: 8px 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hud {
+                padding: 8px;
+            }
+
+            .player-name {
+                font-size: 0.55em;
+                font-weight: 900;
+            }
+
+            .stat {
+                font-size: 0.55em;
+                font-weight: 900;
+            }
+
+            .dialogue-box {
+                bottom: 220px;
+            }
+
+            .dpad-container {
+                width: 140px;
+                height: 140px;
+                bottom: 15px;
+                left: 15px;
+            }
+
+            .dpad-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 2.2em;
+                border: 5px solid #00d9ff;
+            }
+
+            .dpad-center {
+                width: 45px;
+                height: 45px;
+                border: 4px solid #00d9ff;
+            }
+
+            .action-buttons {
+                bottom: 15px;
+                right: 15px;
+            }
+
+            .action-btn {
+                width: 75px;
+                height: 75px;
+                font-size: 1.15em;
+                border: 6px solid #ffd700;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- HUD -->
+        <div class="hud">
+            <div class="hud-left">
+                <div class="player-name">ALEX O VIDENTE</div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar-fill" id="hpBar" style="width: 100%"></div>
+                    <div class="hp-text" id="hpText">100/100 PSI</div>
+                </div>
+            </div>
+            <div class="hud-center">
+                <div class="stat">NÍVEL: <span id="playerLevel">1</span></div>
+            </div>
+            <div class="hud-right">
+                <div class="stat">💰 <span id="goldCount">0</span></div>
+                <div class="stat">⭐ <span id="missionCount">0</span>/20</div>
+                <button class="tool-btn" onclick="openMenu()" style="padding: 10px 20px;">MENU</button>
+            </div>
+        </div>
+
+        <!-- Main Game -->
+        <div class="game-main">
+            <!-- Map -->
+            <div class="map-container">
+                <canvas id="gameCanvas"></canvas>
+                
+                <!-- Dialogue Box -->
+                <div class="dialogue-box" id="dialogueBox">
+                    <div class="dialogue-speaker" id="dialogueSpeaker"></div>
+                    <div class="dialogue-text" id="dialogueText"></div>
+                    <div class="dialogue-choices" id="dialogueChoices"></div>
+                    <div class="dialogue-continue" id="dialogueContinue" style="margin-top: 15px; padding: 10px; background: rgba(0,217,255,0.1); border: 2px solid #00d9ff; text-align: center;">
+                        ▼ Pressione ESPAÇO para continuar ▼
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">🎯 MISSÃO ATUAL</div>
+                    <div class="target-display">
+                        <div style="font-size: 0.5em; color: #00d9ff; margin-bottom: 5px;">TARGET</div>
+                        <div class="target-number" id="currentTarget">----</div>
+                    </div>
+                    <div class="mission-info" id="missionInfo">
+                        Explore o mapa e encontre os 20 Videntes para testar suas habilidades psíquicas!
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">🎨 REGISTRO DE IMPRESSÕES</div>
+                    <canvas id="miniCanvas" class="mini-canvas" width="270" height="200"></canvas>
+                    <div class="canvas-tools">
+                        <button class="tool-btn" onclick="clearMiniCanvas()">LIMPAR</button>
+                        <button class="tool-btn" onclick="saveMiniDrawing()">SALVAR</button>
+                        <button class="tool-btn" onclick="undoMini()">DESFAZER</button>
+                    </div>
+                    <div class="color-grid">
+                        <div class="color-box active" style="background: #000" onclick="selectMiniColor('#000')" data-color="#000"></div>
+                        <div class="color-box" style="background: #f00" onclick="selectMiniColor('#f00')" data-color="#f00"></div>
+                        <div class="color-box" style="background: #00f" onclick="selectMiniColor('#00f')" data-color="#00f"></div>
+                        <div class="color-box" style="background: #0f0" onclick="selectMiniColor('#0f0')" data-color="#0f0"></div>
+                        <div class="color-box" style="background: #ff0" onclick="selectMiniColor('#ff0')" data-color="#ff0"></div>
+                        <div class="color-box" style="background: #f0f" onclick="selectMiniColor('#f0f')" data-color="#f0f"></div>
+                        <div class="color-box" style="background: #0ff" onclick="selectMiniColor('#0ff')" data-color="#0ff"></div>
+                        <div class="color-box" style="background: #fff" onclick="selectMiniColor('#fff')" data-color="#fff"></div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">🎮 CONTROLES</div>
+                    <div class="controls-hint">
+                        WASD / SETAS - Mover<br>
+                        ESPAÇO - Interagir<br>
+                        ESC - Menu<br>
+                        E - Protocolo RV<br><br>
+                        <span style="color: #00d9ff;">🔮 DICA IMPORTANTE:</span><br>
+                        Não tente adivinhar!<br>
+                        Sinta as impressões.<br>
+                        Confie na intuição.<br>
+                        Desenhe o que vier.<br><br>
+                        ✨ = Ouro<br>
+                        💎 = Cristal PSI
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mission Complete Popup -->
+        <div class="popup" id="missionPopup">
+            <div class="popup-title" id="popupTitle">MISSÃO COMPLETA!</div>
+            <div class="popup-message" id="popupMessage"></div>
+            <button class="popup-btn" onclick="closePopup()">CONTINUAR</button>
+        </div>
+
+        <!-- Menu Overlay -->
+        <div class="menu-overlay" id="menuOverlay">
+            <div class="menu-content">
+                <div class="menu-title">📜 MENU</div>
+                <div class="menu-tabs">
+                    <button class="menu-tab active" onclick="switchMenuTab('missions')">MISSÕES</button>
+                    <button class="menu-tab" onclick="switchMenuTab('stats')">STATUS</button>
+                    <button class="menu-tab" onclick="switchMenuTab('help')">AJUDA</button>
+                </div>
+                
+                <div id="missionsTab" class="tab-content active">
+                    <h3 style="color: #ffd700; margin-bottom: 15px;">Suas Missões:</h3>
+                    <div id="missionsList"></div>
+                </div>
+                
+                <div id="statsTab" class="tab-content">
+                    <h3 style="color: #ffd700; margin-bottom: 15px;">Estatísticas:</h3>
+                    <p>Nome: Alex o Vidente</p>
+                    <p>Nível: <span id="menuLevel">1</span></p>
+                    <p>PSI: <span id="menuPsi">100/100</span></p>
+                    <p>Ouro: <span id="menuGold">0</span></p>
+                    <p>Missões Completas: <span id="menuMissions">0/20</span></p>
+                    <p>Taxa de Acerto: <span id="menuAccuracy">0%</span></p>
+                </div>
+                
+                <div id="helpTab" class="tab-content">
+                    <h3 style="color: #ffd700; margin-bottom: 15px;">Como Jogar:</h3>
+                    <p style="font-size: 0.55em; line-height: 1.6;">
+                    <strong style="color: #00d9ff;">NO COMPUTADOR:</strong><br>
+                    • WASD ou Setas - Mover<br>
+                    • Espaço - Interagir<br>
+                    • ESC - Menu<br>
+                    • E - Protocolo RV<br><br>
+                    
+                    <strong style="color: #00d9ff;">NO CELULAR/TABLET:</strong><br>
+                    • D-pad virtual - Mover<br>
+                    • Botão A - Interagir<br>
+                    • Botão M - Menu<br>
+                    • Botão 🎨 - Abrir lousa<br><br>
+                    </p>
+                    
+                    <h3 style="color: #ffd700; margin-bottom: 10px; margin-top: 15px;">Objetivo:</h3>
+                    <p style="font-size: 0.5em; line-height: 1.6;">
+                    1. Explore o mapa<br>
+                    2. Fale com os 20 Videntes (têm !)<br>
+                    3. Aceite missões de visão remota<br>
+                    4. Receba um TARGET único<br>
+                    5. Desenhe suas visões na lousa<br>
+                    6. Escolha baseado em SENSAÇÕES<br>
+                    </p>
+                    
+                    <h3 style="color: #00d9ff; margin-bottom: 10px; margin-top: 15px;">Visão Remota Autêntica:</h3>
+                    <p style="font-size: 0.5em; line-height: 1.6;">
+                    Visão Remota não é adivinhação! Você deve sentir:<br>
+                    - FORMAS (retangular, circular, irregular)<br>
+                    - TEXTURAS (liso, áspero, macio)<br>
+                    - CORES (tons dominantes)<br>
+                    - TEMPERATURAS (frio, quente, morno)<br>
+                    - EMOÇÕES (urgência, calma, tensão)<br>
+                    - SÍMBOLOS (padrões, arquétipos)<br>
+                    - ENERGIA (masculina, feminina, neutra)<br><br>
+                    Use sua INTUIÇÃO, não a razão!
+                    </p>
+                    <br>
+                    <p style="color: #00d9ff;">✨ Objetos brilhantes restauram recursos!</p>
+                    <p style="color: #ffd700;">Complete todas as 20 missões!</p>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="popup-btn" onclick="closeMenu()">VOLTAR AO JOGO</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Virtual Controls -->
+        <div class="mobile-controls" id="mobileControls">
+            <div class="dpad-container">
+                <div class="dpad-center"></div>
+                <div class="dpad-btn dpad-up" id="btnUp">▲</div>
+                <div class="dpad-btn dpad-down" id="btnDown">▼</div>
+                <div class="dpad-btn dpad-left" id="btnLeft">◀</div>
+                <div class="dpad-btn dpad-right" id="btnRight">▶</div>
+            </div>
+            <div class="action-buttons">
+                <div class="action-btn" id="btnAction">
+                    <span style="font-size: 1.8em; font-weight: 900; margin-bottom: 2px;">A</span>
+                    <span style="font-size: 0.45em; font-weight: 700; letter-spacing: 1px;">AÇÃO</span>
+                </div>
+                <div class="action-btn" id="btnMenu">
+                    <span style="font-size: 1.8em; font-weight: 900; margin-bottom: 2px;">M</span>
+                    <span style="font-size: 0.45em; font-weight: 700; letter-spacing: 1px;">MENU</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Canvas Toggle Button -->
+        <button class="mobile-canvas-toggle" id="mobileCanvasToggle" onclick="toggleMobileCanvas()">
+            🎨 LOUSA
+        </button>
+
+        <!-- Mobile Canvas Panel -->
+        <div class="mobile-canvas-panel" id="mobileCanvasPanel">
+            <button class="close-canvas-btn" onclick="toggleMobileCanvas()">✕ FECHAR LOUSA</button>
+            
+            <div class="sidebar-section" style="padding: 0; border: none;">
+                <div class="sidebar-title">🎯 MISSÃO ATUAL</div>
+                <div class="target-display">
+                    <div style="font-size: 0.5em; color: #00d9ff; margin-bottom: 5px;">TARGET</div>
+                    <div class="target-number" id="mobileTarget">----</div>
+                </div>
+                <div class="mission-info" id="mobileMissionInfo" style="font-size: 0.9em; line-height: 1.4;">
+                    Aceite uma missão para começar!
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="padding: 0; border: none; margin-top: 20px;">
+                <div class="sidebar-title">🎨 REGISTRO DE IMPRESSÕES</div>
+                <canvas id="mobileCanvas" class="mini-canvas" width="270" height="200"></canvas>
+                <div class="canvas-tools">
+                    <button class="tool-btn" onclick="clearMobileCanvas()">LIMPAR</button>
+                    <button class="tool-btn" onclick="saveMobileDrawing()">SALVAR</button>
+                    <button class="tool-btn" onclick="undoMobileCanvas()">DESFAZER</button>
+                </div>
+                <div class="color-grid">
+                    <div class="color-box active" style="background: #000" onclick="selectMobileColor('#000')" data-color="#000"></div>
+                    <div class="color-box" style="background: #f00" onclick="selectMobileColor('#f00')" data-color="#f00"></div>
+                    <div class="color-box" style="background: #00f" onclick="selectMobileColor('#00f')" data-color="#00f"></div>
+                    <div class="color-box" style="background: #0f0" onclick="selectMobileColor('#0f0')" data-color="#0f0"></div>
+                    <div class="color-box" style="background: #ff0" onclick="selectMobileColor('#ff0')" data-color="#ff0"></div>
+                    <div class="color-box" style="background: #f0f" onclick="selectMobileColor('#f0f')" data-color="#f0f"></div>
+                    <div class="color-box" style="background: #0ff" onclick="selectMobileColor('#0ff')" data-color="#0ff"></div>
+                    <div class="color-box" style="background: #fff" onclick="selectMobileColor('#fff')" data-color="#fff"></div>
+                </div>
+            </div>
+
+            <div class="sidebar-section" style="padding: 0; border: none; margin-top: 20px;">
+                <div class="sidebar-title">🎮 DICAS</div>
+                <div class="controls-hint" style="font-size: 0.8em;">
+                    Use o D-pad para mover<br>
+                    Botão A para interagir<br>
+                    Botão M para menu<br><br>
+                    <span style="color: #00d9ff;">🔮 Confie na intuição!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // GAME CONSTANTS
+        // ============================================
+        const TILE_SIZE = 32;
+        const MAP_WIDTH = 25;
+        const MAP_HEIGHT = 19;
+
+        // ============================================
+        // GAME STATE
+        // ============================================
+        const game = {
+            canvas: null,
+            ctx: null,
+            player: {
+                x: 12,
+                y: 15,
+                direction: 'down',
+                sprite: 0,
+                animFrame: 0
+            },
+            camera: {
+                x: 0,
+                y: 0
+            },
+            keys: {},
+            lastMoveTime: 0,
+            moveDelay: 150,
+            psi: 100,
+            maxPsi: 100,
+            gold: 0,
+            level: 1,
+            missions: [],
+            completedMissions: 0,
+            currentMission: null,
+            currentTarget: null,
+            dialogue: {
+                active: false,
+                speaker: '',
+                text: '',
+                choices: [],
+                callback: null
+            }
+        };
+
+        // ============================================
+        // MAP DATA (0=grass, 1=wall, 2=water, 3=path, 4=tree)
+        // ============================================
+        const mapData = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,3,3,3,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,3,0,0,0,0,0,0,0,0,0,3,0,4,0,0,0,0,4,0,0,0,0,0,1],
+            [1,3,0,0,4,0,0,0,4,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,3,0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,3,3,0,0,0,0,1],
+            [1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+            [1,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,3,0,0,0,4,0,0,0,4,0,0,3,0,0,0,0,1],
+            [1,0,0,4,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,3,0,0,4,0,1],
+            [1,0,0,0,0,0,0,0,3,2,2,2,2,2,2,2,2,2,2,3,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,3,2,2,2,2,2,2,2,2,2,2,3,0,0,0,0,1],
+            [1,0,4,0,0,0,0,0,3,2,2,2,2,2,2,2,2,2,2,3,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,3,0,0,0,4,1],
+            [1,0,0,0,4,0,0,0,3,0,0,4,0,0,0,4,0,0,0,3,0,0,0,0,1],
+            [1,3,3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,0,0,3,3,3,3,3,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        // ============================================
+        // NPCs & OBJECTS
+        // ============================================
+        const npcs = [
+            // NÍVEL 1 - INICIANTES
+            { x: 5, y: 3, sprite: '🧙‍♀️', name: 'Mestra Luna', mission: 0, talked: false },
+            { x: 15, y: 5, sprite: '👴', name: 'Sábio Marcus', mission: 1, talked: false },
+            { x: 8, y: 8, sprite: '🧝‍♂️', name: 'Élfico Zen', mission: 2, talked: false },
+            
+            // NÍVEL 2 - INTERMEDIÁRIOS
+            { x: 20, y: 3, sprite: '🧙‍♂️', name: 'Mago Astral', mission: 3, talked: false },
+            { x: 3, y: 13, sprite: '👵', name: 'Vó Clarividente', mission: 4, talked: false },
+            { x: 18, y: 13, sprite: '🧑‍🔬', name: 'Dr. Psi', mission: 5, talked: false },
+            
+            // NÍVEL 3 - AVANÇADOS
+            { x: 11, y: 7, sprite: '🧘', name: 'Monge Telepata', mission: 6, talked: false },
+            { x: 13, y: 16, sprite: '🦸', name: 'Herói Psíquico', mission: 7, talked: false },
+            { x: 6, y: 16, sprite: '🧚', name: 'Fada Intuitiva', mission: 8, talked: false },
+            
+            // NÍVEL 4 - EXPERTS
+            { x: 22, y: 8, sprite: '🤖', name: 'IA Vidente', mission: 9, talked: false },
+            { x: 10, y: 2, sprite: '🧙', name: 'Oráculo Antigo', mission: 10, talked: false },
+            { x: 19, y: 7, sprite: '👁️', name: 'Observador Cósmico', mission: 11, talked: false },
+            
+            // NÍVEL 5 - MASTERS
+            { x: 5, y: 10, sprite: '🌟', name: 'Estrela Guia', mission: 12, talked: false },
+            { x: 16, y: 14, sprite: '🔮', name: 'Vidente Supremo', mission: 13, talked: false },
+            { x: 8, y: 4, sprite: '💫', name: 'Espírito Ancestral', mission: 14, talked: false },
+            
+            // NÍVEL 6 - GRANDMASTERS
+            { x: 12, y: 10, sprite: '👑', name: 'Guardião Dimensional', mission: 15, talked: false },
+            { x: 21, y: 16, sprite: '🌀', name: 'Portal Temporal', mission: 16, talked: false },
+            { x: 4, y: 6, sprite: '⚡', name: 'Condutor Energético', mission: 17, talked: false },
+            { x: 14, y: 12, sprite: '🎭', name: 'Arquiteto da Realidade', mission: 18, talked: false },
+            { x: 12, y: 13, sprite: '✨', name: 'MESTRE FINAL', mission: 19, talked: false }
+        ];
+
+        const objects = [
+            { x: 4, y: 4, sprite: '✨', type: 'sparkle' },
+            { x: 12, y: 11, sprite: '✨', type: 'sparkle' },
+            { x: 21, y: 13, sprite: '✨', type: 'sparkle' },
+            { x: 7, y: 16, sprite: '💎', type: 'crystal' },
+            { x: 17, y: 2, sprite: '💎', type: 'crystal' }
+        ];
+
+        // ============================================
+        // MISSIONS DATABASE - AUTHENTIC REMOTE VIEWING
+        // ============================================
+        const missionsDB = [
+            // NÍVEL 1 - BÁSICO (Formas e Posições)
+            {
+                id: 0,
+                title: "Objeto Perdido",
+                description: "As chaves de Alex estão perdidas. Concentre-se no TARGET e descreva a FORMA do local onde estão.",
+                choices: [
+                    { text: "Forma retangular e vertical, como um armário ou porta", correct: false },
+                    { text: "Forma irregular e macia, como tecido dobrado", correct: true },
+                    { text: "Forma circular e plana, como uma mesa redonda", correct: false },
+                    { text: "Forma quadrada e rígida, como uma caixa ou gaveta", correct: false }
+                ],
+                reward: 50,
+                psiReward: 10
+            },
+            {
+                id: 1,
+                title: "Localização Espacial",
+                description: "Onde o objeto está em relação ao ambiente? Sinta a ALTURA e POSIÇÃO.",
+                choices: [
+                    { text: "Elevado, acima da linha dos olhos, suspenso", correct: false },
+                    { text: "Médio, na altura do tronco, acessível", correct: true },
+                    { text: "Baixo, próximo ao chão, embaixo de algo", correct: false },
+                    { text: "Escondido, dentro de algo fechado, não visível", correct: false }
+                ],
+                reward: 75,
+                psiReward: 15
+            },
+            {
+                id: 2,
+                title: "Sensação Térmica",
+                description: "Um evento importante está prestes a ocorrer. Qual a TEMPERATURA emocional que você sente?",
+                choices: [
+                    { text: "Fria e calma, sensação de tranquilidade", correct: false },
+                    { text: "Quente e urgente, pressão temporal", correct: true },
+                    { text: "Neutra e estável, sem mudanças", correct: false },
+                    { text: "Gelada e paralisante, medo ou tensão", correct: false }
+                ],
+                reward: 100,
+                psiReward: 20
+            },
+            
+            // NÍVEL 2 - INTERMEDIÁRIO (Cores e Texturas)
+            {
+                id: 3,
+                title: "Impressão Cromática",
+                description: "Visualize o caminho que Alex deve tomar. Qual COR domina sua visão?",
+                choices: [
+                    { text: "Tons de verde, natureza, vida", correct: false },
+                    { text: "Tons de cinza e preto, asfalto, urbano", correct: false },
+                    { text: "Tons de azul, água, reflexão, perigo", correct: true },
+                    { text: "Tons de marrom, terra, estabilidade", correct: false }
+                ],
+                reward: 125,
+                psiReward: 25
+            },
+            {
+                id: 4,
+                title: "Textura Psíquica",
+                description: "Toque mentalmente a superfície do objeto TARGET. Qual TEXTURA você percebe?",
+                choices: [
+                    { text: "Lisa e fria, como metal ou plástico", correct: false },
+                    { text: "Macia e quente, como tecido ou pele", correct: true },
+                    { text: "Áspera e dura, como madeira ou pedra", correct: false },
+                    { text: "Viscosa e úmida, como líquido ou gel", correct: false }
+                ],
+                reward: 150,
+                psiReward: 30
+            },
+            {
+                id: 5,
+                title: "Densidade Material",
+                description: "Sinta o PESO e DENSIDADE do objeto que Alex procura.",
+                choices: [
+                    { text: "Muito leve, quase sem massa, pode voar", correct: false },
+                    { text: "Leve e portátil, cabe no bolso", correct: false },
+                    { text: "Peso médio, precisa duas mãos", correct: true },
+                    { text: "Pesado e denso, difícil de mover", correct: false }
+                ],
+                reward: 175,
+                psiReward: 35
+            },
+            
+            // NÍVEL 3 - AVANÇADO (Emoções e Energias)
+            {
+                id: 6,
+                title: "Energia Emocional",
+                description: "Qual EMOÇÃO está ligada a este TARGET? Sinta a vibração energética.",
+                choices: [
+                    { text: "Alegria e celebração, energia positiva", correct: false },
+                    { text: "Ansiedade e pressa, necessidade urgente", correct: true },
+                    { text: "Tristeza e melancolia, energia baixa", correct: false },
+                    { text: "Raiva e frustração, energia bloqueada", correct: false }
+                ],
+                reward: 200,
+                psiReward: 40
+            },
+            {
+                id: 7,
+                title: "Padrão de Movimento",
+                description: "Visualize o MOVIMENTO associado ao TARGET. Como ele se comporta?",
+                choices: [
+                    { text: "Estático e imóvel, permanece no mesmo lugar", correct: false },
+                    { text: "Movimento vertical, sobe e desce", correct: true },
+                    { text: "Movimento circular, gira ou roda", correct: false },
+                    { text: "Movimento horizontal, vai e vem lateralmente", correct: false }
+                ],
+                reward: 225,
+                psiReward: 45
+            },
+            {
+                id: 8,
+                title: "Impressão Temporal",
+                description: "Em que PERÍODO do dia o TARGET é mais ativo ou relevante?",
+                choices: [
+                    { text: "Manhã cedo, início do dia, despertar", correct: false },
+                    { text: "Tarde, meio do dia, atividade plena", correct: true },
+                    { text: "Noite, fim do dia, encerramento", correct: false },
+                    { text: "Madrugada, transição, silêncio", correct: false }
+                ],
+                reward: 250,
+                psiReward: 50
+            },
+            
+            // NÍVEL 4 - EXPERT (Símbolos e Arquétipos)
+            {
+                id: 9,
+                title: "Símbolo Arquetípico",
+                description: "Qual SÍMBOLO melhor representa a energia do TARGET?",
+                choices: [
+                    { text: "Círculo - unidade, completude, ciclo", correct: false },
+                    { text: "Quadrado - estabilidade, estrutura, ordem", correct: false },
+                    { text: "Triângulo - direção, movimento, decisão", correct: true },
+                    { text: "Espiral - crescimento, evolução, expansão", correct: false }
+                ],
+                reward: 275,
+                psiReward: 55
+            },
+            {
+                id: 10,
+                title: "Polaridade Energética",
+                description: "O TARGET possui energia MASCULINA ou FEMININA? Qual predomina?",
+                choices: [
+                    { text: "Masculina - ativa, expansiva, assertiva", correct: false },
+                    { text: "Feminina - receptiva, intuitiva, fluida", correct: true },
+                    { text: "Neutra - balanceada, equilibrada, harmônica", correct: false },
+                    { text: "Alternada - muda constantemente, dual", correct: false }
+                ],
+                reward: 300,
+                psiReward: 60
+            },
+            {
+                id: 11,
+                title: "Elemento Dominante",
+                description: "Qual ELEMENTO está mais presente no TARGET?",
+                choices: [
+                    { text: "Fogo - energia, transformação, paixão", correct: false },
+                    { text: "Água - emoção, fluidez, adaptação", correct: false },
+                    { text: "Ar - pensamento, comunicação, leveza", correct: true },
+                    { text: "Terra - solidez, matéria, fundação", correct: false }
+                ],
+                reward: 325,
+                psiReward: 65
+            },
+            
+            // NÍVEL 5 - MASTER (Complexidade Multidimensional)
+            {
+                id: 12,
+                title: "Impressão Gestalt",
+                description: "Qual a IMPRESSÃO GERAL que você tem do TARGET como um todo?",
+                choices: [
+                    { text: "Complexo e multifacetado, muitas camadas", correct: false },
+                    { text: "Simples e direto, uma única função", correct: true },
+                    { text: "Abstrato e conceitual, difícil definir", correct: false },
+                    { text: "Concreto e tangível, muito físico", correct: false }
+                ],
+                reward: 350,
+                psiReward: 70
+            },
+            {
+                id: 13,
+                title: "Ressonância Espacial",
+                description: "Em qual AMBIENTE o TARGET naturalmente pertence?",
+                choices: [
+                    { text: "Ambiente natural, externo, ao ar livre", correct: false },
+                    { text: "Ambiente doméstico, privado, íntimo", correct: true },
+                    { text: "Ambiente público, social, coletivo", correct: false },
+                    { text: "Ambiente profissional, funcional, técnico", correct: false }
+                ],
+                reward: 375,
+                psiReward: 75
+            },
+            {
+                id: 14,
+                title: "Frequência Vibratória",
+                description: "Qual a FREQUÊNCIA energética do TARGET? Como ele vibra?",
+                choices: [
+                    { text: "Alta frequência - rápida, aguda, intensa", correct: false },
+                    { text: "Média frequência - moderada, estável, constante", correct: true },
+                    { text: "Baixa frequência - lenta, grave, profunda", correct: false },
+                    { text: "Frequência variável - oscila, muda, instável", correct: false }
+                ],
+                reward: 400,
+                psiReward: 80
+            },
+            
+            // NÍVEL 6 - GRANDMASTER (Desafio Final)
+            {
+                id: 15,
+                title: "Percepção Multissensorial",
+                description: "Integre TODOS os sentidos. Qual descrição completa melhor captura o TARGET?",
+                choices: [
+                    { text: "Quente, liso, silencioso, sem cheiro, invisível", correct: false },
+                    { text: "Morno, macio, com som sutil, leve odor, comum", correct: true },
+                    { text: "Frio, áspero, barulhento, forte odor, marcante", correct: false },
+                    { text: "Gelado, viscoso, estridente, pútrido, repulsivo", correct: false }
+                ],
+                reward: 450,
+                psiReward: 90
+            },
+            {
+                id: 16,
+                title: "Conexão Temporal",
+                description: "O TARGET está ligado ao PASSADO, PRESENTE ou FUTURO?",
+                choices: [
+                    { text: "Passado - memória, história, já aconteceu", correct: false },
+                    { text: "Presente - agora, atual, está acontecendo", correct: true },
+                    { text: "Futuro - potencial, possibilidade, vai acontecer", correct: false },
+                    { text: "Atemporal - transcende o tempo, sempre existe", correct: false }
+                ],
+                reward: 500,
+                psiReward: 95
+            },
+            {
+                id: 17,
+                title: "Dimensão Emocional Profunda",
+                description: "Além da emoção superficial, qual SENTIMENTO PROFUNDO o TARGET evoca?",
+                choices: [
+                    { text: "Segurança e proteção, aconchego", correct: false },
+                    { text: "Expectativa e antecipação, aguardando", correct: true },
+                    { text: "Nostalgia e saudade, lembrança", correct: false },
+                    { text: "Apreensão e cautela, incerteza", correct: false }
+                ],
+                reward: 550,
+                psiReward: 100
+            },
+            {
+                id: 18,
+                title: "Padrão Geométrico Avançado",
+                description: "Se o TARGET fosse um PADRÃO GEOMÉTRICO complexo, qual seria?",
+                choices: [
+                    { text: "Grade ortogonal - linhas retas, ângulos 90°", correct: false },
+                    { text: "Espiral logarítmica - crescimento proporcional", correct: false },
+                    { text: "Fractal recursivo - padrão que se repete", correct: true },
+                    { text: "Tesselação hexagonal - encaixe perfeito", correct: false }
+                ],
+                reward: 600,
+                psiReward: 110
+            },
+            {
+                id: 19,
+                title: "Desafio Final - Essência Pura",
+                description: "Transcenda forma e função. Qual a ESSÊNCIA PURA do TARGET?",
+                choices: [
+                    { text: "Transformação - mudança de estado", correct: false },
+                    { text: "Conexão - ligação entre pontos", correct: true },
+                    { text: "Contenção - guardar ou proteger", correct: false },
+                    { text: "Manifestação - tornar visível o invisível", correct: false }
+                ],
+                reward: 1000,
+                psiReward: 150
+            }
+        ];
+
+        // Initialize missions
+        game.missions = missionsDB.map(m => ({
+            ...m,
+            completed: false,
+            correctAnswer: null
+        }));
+
+        // ============================================
+        // MINI CANVAS (Drawing)
+        // ============================================
+        let miniCanvas, miniCtx;
+        let mobileCanvas, mobileCtx;
+        let miniDrawing = false;
+        let mobileDrawing = false;
+        let miniColor = '#000';
+        let mobileColor = '#000';
+        let miniHistory = [];
+        let mobileHistory = [];
+        let miniCurrentPath = [];
+        let mobileCurrentPath = [];
+
+        function initMiniCanvas() {
+            // Desktop canvas
+            miniCanvas = document.getElementById('miniCanvas');
+            if (miniCanvas) {
+                miniCtx = miniCanvas.getContext('2d');
+                miniCanvas.addEventListener('mousedown', startMiniDraw);
+                miniCanvas.addEventListener('mousemove', miniDraw);
+                miniCanvas.addEventListener('mouseup', stopMiniDraw);
+                miniCanvas.addEventListener('mouseout', stopMiniDraw);
+            }
+
+            // Mobile canvas
+            mobileCanvas = document.getElementById('mobileCanvas');
+            if (mobileCanvas) {
+                mobileCtx = mobileCanvas.getContext('2d');
+                mobileCanvas.addEventListener('touchstart', startMobileDraw);
+                mobileCanvas.addEventListener('touchmove', mobileDraw);
+                mobileCanvas.addEventListener('touchend', stopMobileDraw);
+            }
+        }
+
+        // Desktop canvas functions
+        function startMiniDraw(e) {
+            miniDrawing = true;
+            miniCurrentPath = [];
+            const rect = miniCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            miniCurrentPath.push({ x, y, color: miniColor });
+        }
+
+        function miniDraw(e) {
+            if (!miniDrawing) return;
+            const rect = miniCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            miniCtx.lineWidth = 3;
+            miniCtx.lineCap = 'round';
+            miniCtx.strokeStyle = miniColor;
+            miniCtx.lineTo(x, y);
+            miniCtx.stroke();
+            miniCtx.beginPath();
+            miniCtx.moveTo(x, y);
+
+            miniCurrentPath.push({ x, y, color: miniColor });
+        }
+
+        function stopMiniDraw() {
+            if (miniDrawing && miniCurrentPath.length > 0) {
+                miniHistory.push([...miniCurrentPath]);
+            }
+            miniDrawing = false;
+            if (miniCtx) miniCtx.beginPath();
+        }
+
+        function clearMiniCanvas() {
+            if (miniCtx) {
+                miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+                miniHistory = [];
+            }
+        }
+
+        function undoMini() {
+            if (miniHistory.length > 0 && miniCtx) {
+                miniHistory.pop();
+                miniCtx.clearRect(0, 0, miniCanvas.width, miniCanvas.height);
+                miniHistory.forEach(path => {
+                    miniCtx.beginPath();
+                    path.forEach((point, i) => {
+                        miniCtx.strokeStyle = point.color;
+                        miniCtx.lineWidth = 3;
+                        if (i === 0) {
+                            miniCtx.moveTo(point.x, point.y);
+                        } else {
+                            miniCtx.lineTo(point.x, point.y);
+                            miniCtx.stroke();
+                            miniCtx.beginPath();
+                            miniCtx.moveTo(point.x, point.y);
+                        }
+                    });
+                });
+            }
+        }
+
+        function saveMiniDrawing() {
+            if (game.currentTarget && miniCanvas) {
+                const dataURL = miniCanvas.toDataURL();
+                const data = {
+                    target: game.currentTarget,
+                    mission: game.currentMission ? game.currentMission.title : 'Livre',
+                    drawing: dataURL,
+                    timestamp: new Date().toLocaleString('pt-BR')
+                };
+                let saved = JSON.parse(localStorage.getItem('remoteSessions') || '[]');
+                saved.push(data);
+                localStorage.setItem('remoteSessions', JSON.stringify(saved));
+                showPopup('💾 SALVO!', 'Sua visão foi registrada!');
+            }
+        }
+
+        function selectMiniColor(color) {
+            miniColor = color;
+            document.querySelectorAll('.sidebar .color-box').forEach(box => {
+                box.classList.remove('active');
+                if (box.dataset.color === color) {
+                    box.classList.add('active');
+                }
+            });
+        }
+
+        // Mobile canvas functions
+        function startMobileDraw(e) {
+            e.preventDefault();
+            mobileDrawing = true;
+            mobileCurrentPath = [];
+            const touch = e.touches[0];
+            const rect = mobileCanvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            mobileCurrentPath.push({ x, y, color: mobileColor });
+        }
+
+        function mobileDraw(e) {
+            e.preventDefault();
+            if (!mobileDrawing) return;
+            const touch = e.touches[0];
+            const rect = mobileCanvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            mobileCtx.lineWidth = 3;
+            mobileCtx.lineCap = 'round';
+            mobileCtx.strokeStyle = mobileColor;
+            mobileCtx.lineTo(x, y);
+            mobileCtx.stroke();
+            mobileCtx.beginPath();
+            mobileCtx.moveTo(x, y);
+
+            mobileCurrentPath.push({ x, y, color: mobileColor });
+        }
+
+        function stopMobileDraw(e) {
+            e.preventDefault();
+            if (mobileDrawing && mobileCurrentPath.length > 0) {
+                mobileHistory.push([...mobileCurrentPath]);
+            }
+            mobileDrawing = false;
+            mobileCtx.beginPath();
+        }
+
+        function clearMobileCanvas() {
+            if (mobileCtx) {
+                mobileCtx.clearRect(0, 0, mobileCanvas.width, mobileCanvas.height);
+                mobileHistory = [];
+            }
+        }
+
+        function undoMobileCanvas() {
+            if (mobileHistory.length > 0 && mobileCtx) {
+                mobileHistory.pop();
+                mobileCtx.clearRect(0, 0, mobileCanvas.width, mobileCanvas.height);
+                mobileHistory.forEach(path => {
+                    mobileCtx.beginPath();
+                    path.forEach((point, i) => {
+                        mobileCtx.strokeStyle = point.color;
+                        mobileCtx.lineWidth = 3;
+                        if (i === 0) {
+                            mobileCtx.moveTo(point.x, point.y);
+                        } else {
+                            mobileCtx.lineTo(point.x, point.y);
+                            mobileCtx.stroke();
+                            mobileCtx.beginPath();
+                            mobileCtx.moveTo(point.x, point.y);
+                        }
+                    });
+                });
+            }
+        }
+
+        function saveMobileDrawing() {
+            if (game.currentTarget && mobileCanvas) {
+                const dataURL = mobileCanvas.toDataURL();
+                const data = {
+                    target: game.currentTarget,
+                    mission: game.currentMission ? game.currentMission.title : 'Livre',
+                    drawing: dataURL,
+                    timestamp: new Date().toLocaleString('pt-BR')
+                };
+                let saved = JSON.parse(localStorage.getItem('remoteSessions') || '[]');
+                saved.push(data);
+                localStorage.setItem('remoteSessions', JSON.stringify(saved));
+                showPopup('💾 SALVO!', 'Sua visão foi registrada!');
+                toggleMobileCanvas(); // Close panel after saving
+            }
+        }
+
+        function selectMobileColor(color) {
+            mobileColor = color;
+            document.querySelectorAll('.mobile-canvas-panel .color-box').forEach(box => {
+                box.classList.remove('active');
+                if (box.dataset.color === color) {
+                    box.classList.add('active');
+                }
+            });
+        }
+
+        function toggleMobileCanvas() {
+            const panel = document.getElementById('mobileCanvasPanel');
+            panel.classList.toggle('active');
+            
+            // Sync target info
+            if (panel.classList.contains('active')) {
+                document.getElementById('mobileTarget').textContent = 
+                    document.getElementById('currentTarget').textContent;
+                document.getElementById('mobileMissionInfo').textContent = 
+                    document.getElementById('missionInfo').textContent;
+            }
+        }
+
+        // ============================================
+        // GAME INITIALIZATION
+        // ============================================
+        function init() {
+            game.canvas = document.getElementById('gameCanvas');
+            game.ctx = game.canvas.getContext('2d');
+
+            // Responsive canvas sizing
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            initMiniCanvas();
+            setupInput();
+            setupMobileControls();
+            gameLoop();
+            updateHUD();
+        }
+
+        function resizeCanvas() {
+            const container = document.querySelector('.map-container');
+            const maxWidth = container.clientWidth;
+            const maxHeight = window.innerHeight - 200; // Account for HUD and mobile controls
+            
+            let canvasWidth = 800;
+            let canvasHeight = 600;
+            
+            // Scale down for mobile
+            if (window.innerWidth <= 768) {
+                canvasWidth = Math.min(maxWidth - 20, 600);
+                canvasHeight = Math.min(maxHeight, 450);
+            } else if (window.innerWidth <= 1024) {
+                canvasWidth = Math.min(maxWidth - 20, 700);
+                canvasHeight = Math.min(maxHeight, 550);
+            }
+            
+            game.canvas.width = canvasWidth;
+            game.canvas.height = canvasHeight;
+            
+            updateCamera();
+        }
+
+        // ============================================
+        // MOBILE CONTROLS
+        // ============================================
+        function setupMobileControls() {
+            console.log('Setting up mobile controls...');
+
+            // Get buttons
+            const btnUp = document.getElementById('btnUp');
+            const btnDown = document.getElementById('btnDown');
+            const btnLeft = document.getElementById('btnLeft');
+            const btnRight = document.getElementById('btnRight');
+            const btnAction = document.getElementById('btnAction');
+            const btnMenu = document.getElementById('btnMenu');
+
+            // Check if all buttons exist
+            if (!btnUp || !btnDown || !btnLeft || !btnRight || !btnAction || !btnMenu) {
+                console.error('Mobile controls not found!');
+                console.log('btnUp:', btnUp);
+                console.log('btnDown:', btnDown);
+                console.log('btnLeft:', btnLeft);
+                console.log('btnRight:', btnRight);
+                console.log('btnAction:', btnAction);
+                console.log('btnMenu:', btnMenu);
+                return;
+            }
+
+            console.log('All buttons found! Adding event listeners...');
+
+            // Helper functions for movement
+            function startMove(direction) {
+                console.log('Start move:', direction);
+                game.keys[direction] = true;
+            }
+
+            function stopMove(direction) {
+                console.log('Stop move:', direction);
+                game.keys[direction] = false;
+            }
+
+            // D-pad UP
+            btnUp.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startMove('w');
+            });
+            btnUp.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                stopMove('w');
+            });
+            btnUp.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                startMove('w');
+            });
+            btnUp.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                stopMove('w');
+            });
+            
+            // D-pad DOWN
+            btnDown.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startMove('s');
+            });
+            btnDown.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                stopMove('s');
+            });
+            btnDown.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                startMove('s');
+            });
+            btnDown.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                stopMove('s');
+            });
+            
+            // D-pad LEFT
+            btnLeft.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startMove('a');
+            });
+            btnLeft.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                stopMove('a');
+            });
+            btnLeft.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                startMove('a');
+            });
+            btnLeft.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                stopMove('a');
+            });
+            
+            // D-pad RIGHT
+            btnRight.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                startMove('d');
+            });
+            btnRight.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                stopMove('d');
+            });
+            btnRight.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                startMove('d');
+            });
+            btnRight.addEventListener('mouseup', (e) => {
+                e.preventDefault();
+                stopMove('d');
+            });
+
+            // Action button (Space)
+            function handleAction() {
+                console.log('Action pressed!');
+                
+                if (game.dialogue.active) {
+                    const now = Date.now();
+                    if (now - lastInteractionTime > interactionCooldown) {
+                        handleDialogueContinue();
+                        lastInteractionTime = now;
+                    }
+                } else if (!popupActive && !menuActive) {
+                    checkInteraction();
+                }
+            }
+
+            btnAction.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleAction();
+            });
+            btnAction.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleAction();
+            });
+
+            // Menu button
+            function handleMenuToggle() {
+                console.log('Menu pressed!');
+                
+                const now = Date.now();
+                if (now - lastEscTime > interactionCooldown) {
+                    if (menuActive) {
+                        closeMenu();
+                    } else if (!game.dialogue.active && !popupActive) {
+                        openMenu();
+                    }
+                    lastEscTime = now;
+                }
+            }
+
+            btnMenu.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleMenuToggle();
+            });
+            btnMenu.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleMenuToggle();
+            });
+
+            // Prevent context menu and default behaviors
+            [btnUp, btnDown, btnLeft, btnRight, btnAction, btnMenu].forEach(btn => {
+                btn.addEventListener('contextmenu', (e) => e.preventDefault());
+                btn.addEventListener('touchmove', (e) => e.preventDefault());
+                btn.addEventListener('mouseleave', (e) => {
+                    // Stop movement when mouse leaves button
+                    game.keys['w'] = false;
+                    game.keys['s'] = false;
+                    game.keys['a'] = false;
+                    game.keys['d'] = false;
+                });
+            });
+
+            console.log('Mobile controls initialized successfully!');
+        }
+
+        // ============================================
+        // INPUT HANDLING
+        // ============================================
+        let lastInteractionTime = 0;
+        const interactionCooldown = 300; // ms
+        let lastEscTime = 0;
+        
+        function setupInput() {
+            document.addEventListener('keydown', (e) => {
+                game.keys[e.key.toLowerCase()] = true;
+
+                // Prevent space from triggering during dialogue
+                if (e.key === ' ' && game.dialogue.active) {
+                    e.preventDefault();
+                    const now = Date.now();
+                    if (now - lastInteractionTime > interactionCooldown) {
+                        handleDialogueContinue();
+                        lastInteractionTime = now;
+                    }
+                    return;
+                }
+
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    const now = Date.now();
+                    if (now - lastEscTime > interactionCooldown) {
+                        if (menuActive) {
+                            closeMenu();
+                        } else if (!game.dialogue.active && !popupActive) {
+                            openMenu();
+                        }
+                        lastEscTime = now;
+                    }
+                }
+
+                if (e.key.toLowerCase() === 'e' && !game.dialogue.active && !popupActive && !menuActive) {
+                    useRemoteViewing();
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                game.keys[e.key.toLowerCase()] = false;
+            });
+        }
+
+        // ============================================
+        // GAME LOOP
+        // ============================================
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            // Don't process game updates if dialogue, popup, or menu is active
+            if (game.dialogue.active || popupActive || menuActive) return;
+
+            const now = Date.now();
+            if (now - game.lastMoveTime < game.moveDelay) return;
+
+            let moved = false;
+            let newX = game.player.x;
+            let newY = game.player.y;
+            let newDir = game.player.direction;
+
+            if (game.keys['w'] || game.keys['arrowup']) {
+                newY--; newDir = 'up'; moved = true;
+            } else if (game.keys['s'] || game.keys['arrowdown']) {
+                newY++; newDir = 'down'; moved = true;
+            } else if (game.keys['a'] || game.keys['arrowleft']) {
+                newX--; newDir = 'left'; moved = true;
+            } else if (game.keys['d'] || game.keys['arrowright']) {
+                newX++; newDir = 'right'; moved = true;
+            }
+
+            // Only check interaction if space is pressed and no UI is active
+            if (game.keys[' '] && !game.dialogue.active && !popupActive && !menuActive) {
+                checkInteraction();
+            }
+
+            if (moved) {
+                game.player.direction = newDir;
+                if (canMoveTo(newX, newY)) {
+                    game.player.x = newX;
+                    game.player.y = newY;
+                    game.player.animFrame = (game.player.animFrame + 1) % 4;
+                    game.lastMoveTime = now;
+                    updateCamera();
+                }
+            }
+        }
+
+        function canMoveTo(x, y) {
+            if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return false;
+            const tile = mapData[y][x];
+            if (tile === 1 || tile === 2) return false; // wall or water
+            
+            // Check NPC collision
+            for (let npc of npcs) {
+                if (npc.x === x && npc.y === y) return false;
+            }
+            
+            return true;
+        }
+
+        function updateCamera() {
+            const canvasWidth = game.canvas.width;
+            const canvasHeight = game.canvas.height;
+            
+            game.camera.x = game.player.x * TILE_SIZE - canvasWidth / 2 + TILE_SIZE / 2;
+            game.camera.y = game.player.y * TILE_SIZE - canvasHeight / 2 + TILE_SIZE / 2;
+
+            game.camera.x = Math.max(0, Math.min(game.camera.x, MAP_WIDTH * TILE_SIZE - canvasWidth));
+            game.camera.y = Math.max(0, Math.min(game.camera.y, MAP_HEIGHT * TILE_SIZE - canvasHeight));
+        }
+
+        // ============================================
+        // RENDERING
+        // ============================================
+        function render() {
+            const ctx = game.ctx;
+            ctx.clearRect(0, 0, game.canvas.width, game.canvas.height);
+
+            // Draw map
+            for (let y = 0; y < MAP_HEIGHT; y++) {
+                for (let x = 0; x < MAP_WIDTH; x++) {
+                    const screenX = x * TILE_SIZE - game.camera.x;
+                    const screenY = y * TILE_SIZE - game.camera.y;
+                    
+                    if (screenX < -TILE_SIZE || screenX > game.canvas.width ||
+                        screenY < -TILE_SIZE || screenY > game.canvas.height) continue;
+
+                    const tile = mapData[y][x];
+                    
+                    // Draw tile
+                    if (tile === 0) { // grass
+                        ctx.fillStyle = '#4a7c59';
+                    } else if (tile === 1) { // wall
+                        ctx.fillStyle = '#555';
+                    } else if (tile === 2) { // water
+                        ctx.fillStyle = '#1e88e5';
+                    } else if (tile === 3) { // path
+                        ctx.fillStyle = '#8d6e63';
+                    } else if (tile === 4) { // tree
+                        ctx.fillStyle = '#2e7d32';
+                    }
+                    
+                    ctx.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                    
+                    // Grid
+                    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                    ctx.strokeRect(screenX, screenY, TILE_SIZE, TILE_SIZE);
+                }
+            }
+
+            // Draw objects
+            objects.forEach(obj => {
+                const screenX = obj.x * TILE_SIZE - game.camera.x;
+                const screenY = obj.y * TILE_SIZE - game.camera.y;
+                ctx.font = '24px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Glow effect
+                const time = Date.now() / 500;
+                const glow = Math.sin(time) * 5;
+                ctx.shadowBlur = 10 + glow;
+                ctx.shadowColor = '#ffd700';
+                
+                ctx.fillText(obj.sprite, screenX + TILE_SIZE/2, screenY + TILE_SIZE/2);
+                ctx.shadowBlur = 0;
+            });
+
+            // Draw NPCs
+            npcs.forEach(npc => {
+                const screenX = npc.x * TILE_SIZE - game.camera.x;
+                const screenY = npc.y * TILE_SIZE - game.camera.y;
+                ctx.font = '28px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(npc.sprite, screenX + TILE_SIZE/2, screenY + TILE_SIZE/2);
+                
+                // Show indicator if mission available
+                if (!npc.talked) {
+                    ctx.fillStyle = '#ffd700';
+                    ctx.fillRect(screenX + TILE_SIZE - 8, screenY, 8, 8);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.fillText('!', screenX + TILE_SIZE - 4, screenY + 4);
+                }
+            });
+
+            // Draw player
+            const playerScreenX = game.player.x * TILE_SIZE - game.camera.x;
+            const playerScreenY = game.player.y * TILE_SIZE - game.camera.y;
+            
+            ctx.fillStyle = '#00d9ff';
+            ctx.fillRect(playerScreenX + 8, playerScreenY + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+            
+            // Draw player face
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🧙‍♂️', playerScreenX + TILE_SIZE/2, playerScreenY + TILE_SIZE/2);
+        }
+
+        // ============================================
+        // INTERACTIONS
+        // ============================================
+        let lastCheckTime = 0;
+        const checkCooldown = 500; // ms
+        
+        function checkInteraction() {
+            const now = Date.now();
+            if (now - lastCheckTime < checkCooldown) {
+                return;
+            }
+            lastCheckTime = now;
+            
+            // Check all 4 adjacent tiles, not just the direction faced
+            const adjacentTiles = [
+                { x: game.player.x, y: game.player.y - 1 }, // up
+                { x: game.player.x, y: game.player.y + 1 }, // down
+                { x: game.player.x - 1, y: game.player.y }, // left
+                { x: game.player.x + 1, y: game.player.y }  // right
+            ];
+
+            // Check NPCs in all adjacent tiles
+            for (let tile of adjacentTiles) {
+                const npc = npcs.find(n => n.x === tile.x && n.y === tile.y);
+                if (npc) {
+                    interactWithNPC(npc);
+                    return;
+                }
+            }
+
+            // Check objects in all adjacent tiles
+            for (let tile of adjacentTiles) {
+                const obj = objects.find(o => o.x === tile.x && o.y === tile.y);
+                if (obj) {
+                    interactWithObject(obj);
+                    return;
+                }
+            }
+        }
+
+        function interactWithNPC(npc) {
+            const mission = game.missions[npc.mission];
+            
+            if (mission.completed) {
+                showDialogue(npc.name, "Excelente trabalho, Vidente! Suas habilidades estão evoluindo rapidamente. Continue sua jornada!", []);
+                return;
+            }
+
+            if (npc.talked) {
+                showDialogue(npc.name, "Use sua visão remota! Desenhe suas impressões na lousa e então escolha a alternativa que RESSOA com você.", []);
+                return;
+            }
+
+            // Start mission
+            npc.talked = true;
+            game.currentTarget = generateTarget();
+            game.currentMission = mission;
+            
+            document.getElementById('currentTarget').textContent = game.currentTarget;
+            document.getElementById('missionInfo').textContent = mission.description;
+
+            showDialogue(
+                npc.name,
+                `Saudações, Vidente!\n\n${mission.description}\n\nConcentre-se neste TARGET: ${game.currentTarget}\n\nFeche seus olhos. Respire fundo. Deixe as impressões virem até você.\n\nNão pense - apenas SINTA. Qual descrição RESSOA com sua percepção?`,
+                mission.choices,
+                (choiceIndex) => {
+                    handleMissionChoice(mission, choiceIndex);
+                }
+            );
+        }
+
+        function interactWithObject(obj) {
+            if (obj.type === 'sparkle') {
+                game.gold += 25;
+                showPopup('✨ ENERGIA DOURADA!', 'Você absorveu energia áurica!\n\n+25 moedas de ouro\n\nSeu poder de manifestação aumentou!');
+                objects.splice(objects.indexOf(obj), 1);
+                updateHUD();
+            } else if (obj.type === 'crystal') {
+                game.psi = Math.min(game.maxPsi, game.psi + 50);
+                showPopup('💎 CRISTAL PSÍQUICO!', 'O cristal ressoou com sua consciência!\n\n+50 PSI restaurado\n\nSuas habilidades foram energizadas!');
+                objects.splice(objects.indexOf(obj), 1);
+                updateHUD();
+            }
+        }
+
+        function handleMissionChoice(mission, choiceIndex) {
+            const choice = mission.choices[choiceIndex];
+            mission.completed = true;
+
+            if (choice.correct) {
+                game.gold += mission.reward;
+                game.psi = Math.min(game.maxPsi, game.psi + mission.psiReward);
+                game.completedMissions++;
+                
+                if (game.completedMissions % 3 === 0) {
+                    game.level++;
+                    game.maxPsi += 20;
+                    game.psi = game.maxPsi;
+                }
+
+                showPopup(
+                    '✨ VISÃO CORRETA! ✨',
+                    `Suas impressões psíquicas estavam perfeitas!\n\n+${mission.reward} ouro\n+${mission.psiReward} PSI\n\nProgresso: ${game.completedMissions}/20 missões`
+                );
+            } else {
+                game.gold += Math.floor(mission.reward / 4);
+                showPopup(
+                    '🔮 Percepção Incompleta',
+                    `Suas habilidades estão se desenvolvendo!\nContinue praticando a visão remota.\n\n+${Math.floor(mission.reward / 4)} ouro\n\nProgresso: ${game.completedMissions}/20 missões`
+                );
+            }
+
+            game.currentMission = null;
+            document.getElementById('currentTarget').textContent = '----';
+            document.getElementById('missionInfo').textContent = 'Procure outro Vidente para continuar sua jornada!';
+            
+            updateHUD();
+            checkGameComplete();
+        }
+
+        function useRemoteViewing() {
+            if (!game.currentMission) {
+                showPopup('🔮 VISÃO REMOTA', 'Você precisa aceitar uma missão primeiro!\n\nProcure Videntes com um ! amarelo.\n\nEles vão te dar um TARGET para visualizar.');
+                return;
+            }
+            
+            showPopup('🔮 PROTOCOLO DE VISÃO REMOTA', 
+                `TARGET: ${game.currentTarget}\n\n` +
+                `Use a lousa para registrar:\n` +
+                `• Formas que você percebe\n` +
+                `• Texturas que você sente\n` +
+                `• Cores que surgem\n` +
+                `• Emoções que emergem\n\n` +
+                `Não tente adivinhar - apenas SINTA e registre suas impressões!`
+            );
+        }
+
+        // ============================================
+        // DIALOGUE SYSTEM
+        // ============================================
+        function showDialogue(speaker, text, choices, callback) {
+            game.dialogue.active = true;
+            game.dialogue.speaker = speaker;
+            game.dialogue.text = text;
+            game.dialogue.choices = choices;
+            game.dialogue.callback = callback;
+
+            document.getElementById('dialogueSpeaker').textContent = speaker;
+            document.getElementById('dialogueText').textContent = text;
+            
+            const choicesDiv = document.getElementById('dialogueChoices');
+            const continueDiv = document.getElementById('dialogueContinue');
+
+            if (choices && choices.length > 0) {
+                // Show choices
+                choicesDiv.innerHTML = '';
+                choices.forEach((choice, index) => {
+                    const btn = document.createElement('div');
+                    btn.className = 'choice-option';
+                    btn.textContent = choice.text;
+                    btn.onclick = () => {
+                        // Add small delay to prevent double-click issues
+                        setTimeout(() => selectDialogueChoice(index), 100);
+                    };
+                    choicesDiv.appendChild(btn);
+                });
+                continueDiv.style.display = 'none';
+            } else {
+                // Show continue prompt
+                choicesDiv.innerHTML = '';
+                continueDiv.style.display = 'block';
+            }
+
+            document.getElementById('dialogueBox').classList.add('active');
+        }
+
+        function handleDialogueContinue() {
+            if (game.dialogue.choices.length === 0) {
+                closeDialogue();
+            }
+        }
+
+        function selectDialogueChoice(index) {
+            if (game.dialogue.callback) {
+                game.dialogue.callback(index);
+            }
+            closeDialogue();
+        }
+
+        function closeDialogue() {
+            game.dialogue.active = false;
+            game.dialogue.speaker = '';
+            game.dialogue.text = '';
+            game.dialogue.choices = [];
+            game.dialogue.callback = null;
+            document.getElementById('dialogueBox').classList.remove('active');
+            
+            // Reset interaction timers to prevent immediate re-trigger
+            lastInteractionTime = Date.now();
+            lastCheckTime = Date.now();
+        }
+
+        // ============================================
+        // UI FUNCTIONS
+        // ============================================
+        let popupActive = false;
+        
+        function showPopup(title, message) {
+            popupActive = true;
+            document.getElementById('popupTitle').textContent = title;
+            document.getElementById('popupMessage').textContent = message;
+            document.getElementById('missionPopup').classList.add('active');
+        }
+
+        function closePopup() {
+            popupActive = false;
+            document.getElementById('missionPopup').classList.remove('active');
+            // Reset timers to prevent immediate re-interaction
+            lastInteractionTime = Date.now();
+            lastCheckTime = Date.now();
+        }
+
+        let menuActive = false;
+        
+        function openMenu() {
+            if (menuActive) return;
+            menuActive = true;
+            document.getElementById('menuOverlay').classList.add('active');
+            updateMenuStats();
+        }
+
+        function closeMenu() {
+            menuActive = false;
+            document.getElementById('menuOverlay').classList.remove('active');
+            // Reset timers
+            lastInteractionTime = Date.now();
+            lastCheckTime = Date.now();
+        }
+
+        function switchMenuTab(tab) {
+            document.querySelectorAll('.menu-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            if (tab === 'missions') {
+                document.querySelector('.menu-tab:nth-child(1)').classList.add('active');
+                document.getElementById('missionsTab').classList.add('active');
+                updateMissionsList();
+            } else if (tab === 'stats') {
+                document.querySelector('.menu-tab:nth-child(2)').classList.add('active');
+                document.getElementById('statsTab').classList.add('active');
+            } else if (tab === 'help') {
+                document.querySelector('.menu-tab:nth-child(3)').classList.add('active');
+                document.getElementById('helpTab').classList.add('active');
+            }
+        }
+
+        function updateMissionsList() {
+            const list = document.getElementById('missionsList');
+            list.innerHTML = game.missions.map(m => `
+                <div class="mission-card">
+                    <span class="mission-status ${m.completed ? 'status-complete' : 'status-pending'}">
+                        ${m.completed ? 'COMPLETA' : 'PENDENTE'}
+                    </span>
+                    <h4>${m.title}</h4>
+                    <p>${m.description}</p>
+                    <p>Recompensa: ${m.reward} ouro | ${m.psiReward} PSI</p>
+                </div>
+            `).join('');
+        }
+
+        function updateMenuStats() {
+            document.getElementById('menuLevel').textContent = game.level;
+            document.getElementById('menuPsi').textContent = `${game.psi}/${game.maxPsi}`;
+            document.getElementById('menuGold').textContent = game.gold;
+            document.getElementById('menuMissions').textContent = `${game.completedMissions}/20`;
+            
+            const accuracy = game.completedMissions > 0 
+                ? Math.round((game.completedMissions / game.missions.filter(m => m.completed).length) * 100)
+                : 0;
+            document.getElementById('menuAccuracy').textContent = accuracy + '%';
+        }
+
+        function updateHUD() {
+            document.getElementById('playerLevel').textContent = game.level;
+            document.getElementById('goldCount').textContent = game.gold;
+            document.getElementById('missionCount').textContent = game.completedMissions;
+            
+            const psiPercent = (game.psi / game.maxPsi) * 100;
+            document.getElementById('hpBar').style.width = psiPercent + '%';
+            document.getElementById('hpText').textContent = `${game.psi}/${game.maxPsi} PSI`;
+        }
+
+        function checkGameComplete() {
+            if (game.completedMissions >= 20) {
+                setTimeout(() => {
+                    showPopup(
+                        '🏆 VITÓRIA ABSOLUTA! 🏆',
+                        `Você dominou TODAS as 20 missões de Visão Remota!\n\nNível Final: ${game.level}\nOuro Total: ${game.gold}\nPSI Total: ${game.psi}\n\nVocê é um GRANDMASTER da Visão Remota!\n\nSuas habilidades psíquicas são lendárias!`
+                    );
+                }, 1000);
+            }
+        }
+
+        function generateTarget() {
+            const year = new Date().getFullYear();
+            const num = Math.floor(Math.random() * 10000);
+            return `${year}-${String(num).padStart(4, '0')}`;
+        }
+
+        // ============================================
+        // START GAME
+        // ============================================
+        window.onload = init;
+    </script>
+</body>
+</html>
